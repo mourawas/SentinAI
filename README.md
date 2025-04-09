@@ -104,3 +104,20 @@ Track job status here:
 🔗 [https://rcpepfl.run.ai/](https://rcpepfl.run.ai/)
 
 ---
+## 6. 🔗 Connect to Server with VS Code Remote SSH
+
+To easily edit files and work directly on the server using VS Code:
+
+### Set up VS Code Remote SSH
+* **Install the Remote SSH extension**:
+   * Open VS Code
+   * Go to Extensions (Ctrl+Shift+X or Cmd+Shift+X on Mac)
+   * Search for "Remote - SSH" and install it
+* **Connect to your remote host**:
+   * Open the Command Palette (Ctrl+Shift+P or Cmd+Shift+P)
+   * Type "Remote-SSH: Connect to Host..." and select it
+   * Choose "Add New SSH Host..." if jumphost.rcp.epfl.ch isn't already listed
+   * Enter: `ssh <username>@jumphost.rcp.epfl.ch`
+   * Select a config file to update (the default one is fine)
+   * Click "Connect" and enter your password when prompted
+---
