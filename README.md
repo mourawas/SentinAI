@@ -28,6 +28,11 @@ This will create a custom Docker image with access permissions and necessary lib
 
 ## 2. 📂 Upload Project & Dataset to the Server
 
+SSH to the jumphost. Execute the following command in the command line:​
+```bash
+ssh <username>@jumphost.rcp.epfl.ch ​
+```
+
 Store the project in two locations:
 
 - Your **home directory** on the server:  
