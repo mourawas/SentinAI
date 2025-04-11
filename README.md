@@ -28,6 +28,11 @@ This will create a custom Docker image with access permissions and necessary lib
 
 ## 2. 📂 Upload Project & Dataset to the Server
 
+SSH to the jumphost. Execute the following command in the command line:​
+```bash
+ssh <username>@jumphost.rcp.epfl.ch ​
+```
+
 Store the project in two locations:
 
 - Your **home directory** on the server:  
@@ -98,4 +103,21 @@ runai logs <job-name>
 Track job status here:  
 🔗 [https://rcpepfl.run.ai/](https://rcpepfl.run.ai/)
 
+---
+## 6. 🔗 Connect to Server with VS Code Remote SSH
+
+To easily edit files and work directly on the server using VS Code:
+
+### Set up VS Code Remote SSH
+* **Install the Remote SSH extension**:
+   * Open VS Code
+   * Go to Extensions (Ctrl+Shift+X or Cmd+Shift+X on Mac)
+   * Search for "Remote - SSH" and install it
+* **Connect to your remote host**:
+   * Open the Command Palette (Ctrl+Shift+P or Cmd+Shift+P)
+   * Type "Remote-SSH: Connect to Host..." and select it
+   * Choose "Add New SSH Host..." if jumphost.rcp.epfl.ch isn't already listed
+   * Enter: `ssh <username>@jumphost.rcp.epfl.ch`
+   * Select a config file to update (the default one is fine)
+   * Click "Connect" and enter your password when prompted
 ---
