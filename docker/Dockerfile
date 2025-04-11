@@ -45,5 +45,5 @@ USER ${LDAP_USERNAME}
 
 
 # Install additional dependencies
-RUN pip install -r requirements.txt
+RUN pip install -r docker_requirements.txt
 
