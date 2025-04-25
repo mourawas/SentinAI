@@ -61,9 +61,12 @@ Before running the full training, test the script interactively with reduced epo
 
 ```bash
 runai submit \
-  --image registry.rcp.epfl.ch/ee-559-<username>/my-toolbox:v0.1 \
-  --pvc home:${HOME} -e HOME=${HOME} \
-  --interactive -g 1 --attach
+--image registry.rcp.epfl.ch/ee-559-<username>/my-toolbox:v0.1 \
+--pvc home:/pvc/home \
+-e HOME=/home/<username> \
+--interactive \
+-g 1 \
+--attach
 ```
 
 Then, inside the interactive node, run:
@@ -84,7 +87,7 @@ Once the script works correctly:
 runai submit \
   --image registry.rcp.epfl.ch/ee-559-<username>/my-toolbox:v0.1 \
   --gpu 1 \
-  --pvc home:${HOME} -e HOME=${HOME} \
+  --pvc home:/pvc/home -e HOME=/home/<username> \
   --command -- python3 ~/practice_3_repository/practice_3_simplified.py \
   --dataset_path ~/ \
   --results_path ~/practice_3_repository/results/
