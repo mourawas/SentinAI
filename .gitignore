@@ -1,0 +1,66 @@
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+src/__pycache__/
+**/__pycache__/
+
+# Custom directories
+src/~/
+outputs/checkpoint/
+outputs/logs
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Virtual environments
+venv/
+env/
+ENV/
+.env/
+.venv/
+env.bak/
+venv.bak/
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Logs
+*.log
+logs/
+log/
+
+# Local configuration
+.env
+.env.local
+.env.*
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+
+# Documentation
+docs/_build/
+site/
+
+# Data and outputs that shouldn't be versioned
+*.pkl
+*.h5
+*.model
+*.pt
+*.pth
+*.onnx
+*.pb
+trained_models/

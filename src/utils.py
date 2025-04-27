@@ -1,5 +1,6 @@
 import torch
 import os
+import matplotlib.pyplot as plt
 
 def save_checkpoint(model, optimizer, epoch, loss, checkpoint_path="checkpoint.pth", store_checkpoint_for_every_epoch=False):
     """Save model and optimizer state to a checkpoint file."""
@@ -29,3 +30,29 @@ def load_checkpoint(model, optimizer, checkpoint_path):
     else:
         print("No checkpoint found. Starting training from scratch.")
         return 0, None  # Start from epoch 0 if no checkpoint is found
+    
+# Function to plot training history
+def plot_training_history(history, result_path, model):
+    plt.figure(figsize=(12, 8))
+    
+    # Plot losses
+    plt.subplot(2, 1, 1)
+    plt.plot(history["train_loss"], label="Train Loss")
+    plt.plot(history["val_loss"], label="Val Loss")
+    plt.title("Training and Validation Loss")
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss")
+    plt.legend()
+    
+    # Plot metrics
+    plt.subplot(2, 1, 2)
+    plt.plot(history["val_accuracy"], label="Accuracy")
+    plt.plot(history["val_f1"], label="F1 Score")
+    plt.title("Validation Metrics")
+    plt.xlabel("Epoch")
+    plt.ylabel("Score")
+    plt.legend()
+    
+    plt.tight_layout()
+    plt.savefig(result_path/"logs"/ (model + "_training_history.png"))
+    plt.show()
