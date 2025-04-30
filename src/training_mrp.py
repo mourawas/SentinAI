@@ -51,7 +51,7 @@ def main():
     mask_probability = 0.5
     batch_size = 16
     learning_rate = 5e-5
-    num_epochs = 1
+    num_epochs = 3
     num_transformer_layers = 6
     dropout_prob = 0.2
 

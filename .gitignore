@@ -64,3 +64,6 @@ site/
 *.onnx
 *.pb
 trained_models/
+**/model/
+**/outputs/
+**/src/__pycache__/

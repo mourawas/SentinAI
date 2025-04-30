@@ -251,7 +251,7 @@ def train_sentinai_model(model, optimizer, train_loader, val_loader, num_epochs=
         
                 
         # Save checkpoint
-        save_checkpoint(model, optimizer, epoch+1, avg_train_loss, 
+        save_checkpoint(model, optimizer, epoch, avg_train_loss, 
                         result_path/"checkpoints/sentinai_checkpoint.pth", 
                         store_checkpoint_for_every_epoch=False)
         
@@ -261,7 +261,7 @@ def train_sentinai_model(model, optimizer, train_loader, val_loader, num_epochs=
         # Print epoch results
         print(f"Train Loss: {avg_train_loss:4f}")
         print(f"Val Loss: {avg_val_loss:4f}")
-        print(f"Val Metrics: {accuracy:4}, {macro_f1:4}")
+        print(f"Val Metrics: accuracy: {accuracy:4}, f1:{macro_f1:4}")
         
         # Save best model
         if avg_val_loss < best_val_loss:

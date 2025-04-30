@@ -55,4 +55,4 @@ def plot_training_history(history, result_path, model):
     
     plt.tight_layout()
     plt.savefig(result_path/"logs"/ (model + "_training_history.png"))
-    plt.show()
+    plt.close()
