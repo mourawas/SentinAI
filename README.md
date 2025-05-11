@@ -1,126 +1,57 @@
-# SentinAI
+# Why Is It Hate Speech? Masked Rationale Prediction for Explainable Hate Speech Detection (COLING 2022)
+**Paper link: [COLING](https://aclanthology.org/2022.coling-1.577/)  |  [arXiv](https://arxiv.org/abs/2211.00243)** <br>
 
-## 🧪 Project Setup & Execution Guide
-
-This guide walks you through setting up and running SentinAI on the EPFL RCP server.
-
----
-
-### 1. 🔧 Setup Your Docker Environment
-
-Use the Docker image with the required libraries located in the `docker/` folder and build it as follows:
-
-```bash
-cd docker/
-
-docker build --platform linux/amd64 . --tag registry.rcp.epfl.ch/ee-559-<username>/my-toolbox:v0.1 \
-  --build-arg LDAP_GROUPNAME=rcp-runai-course-ee-559_AppGrpU \
-  --build-arg LDAP_GID=84650 \
-  --build-arg LDAP_USERNAME=<username> \
-  --build-arg LDAP_UID=<uid>
+## Initial Setting
+First, Clone this git repository
+```
+git clone https://github.com/alatteaday/mrp_hate-speech-detection/
+```
+The docker commands are implemented in GNU Makefile. You can build the linux-anaconda image that the required packages are installed. The details are written in Dockerfile and Makefile. Or you can use the docker commands directly. 
+1. Set the name variables in Makefile, such as IMAGE_NAME, IMAGE_TAG, CONTAINER_NAME, CONTAINER_PORT, NVIDIA_VISIBLE_DEVICES.
+RAYAN: NOT USEFULL TO TOUCH THAT
+2. Build the docker image. Use the Makefile command on the directory the Dockerfile located.
+```
+make docker-build
+```
+3. Run the docker container from the built image.
+```
+make docker-run
+```
+4. Execute the container.
+```
+make docker-exec
 ```
 
-> 💡 Replace `<username>` with your RCP username and `<uid>` with your user ID.
-
-This will create a custom Docker image with access permissions and necessary libraries, ready to be used on the Run:AI cluster.
-
----
-
-## 2. 📂 Upload Project & Dataset to the Server
-
-SSH to the jumphost. Execute the following command in the command line:​
-```bash
-ssh <username>@jumphost.rcp.epfl.ch ​
+## Models
+If you would like to run the models, you can download these compressed files via the Google drive links: ['finetune_1st.tar.gz'](https://drive.google.com/file/d/1BCbgKYNH1-uI_hB18dHRez-Sr3F3VFu4/view?usp=share_link) and ['finetune_2nd.tar.gz'](https://drive.google.com/file/d/1cHpBFWFWq8-o6vLFAbDVcm5Mt2SZY_l8/view?usp=share_link). If you would like to run the final hate speech detection models, you only need the **'finetune_2nd'** and don't have to get 'finetune_1st'. <br>
+'finetune_1st' includes the checkpoints of the pre-finetuned models. Each of names shows what's the pre-finetuning method and some infos of the hyperparameters.
 ```
-
-Store the project in two locations:
-
-- Your **home directory** on the server:  
-  `/home/<username>/`
-- The **shared group directory**:  
-  `/mnt/course-ee-559/collaborative/group-<group-number>/`
-
-#### Using `scp` to Copy Files
-
-From your local machine, run the following commands to upload your project:
-
-```bash
-# Copy project folder
-scp -r practice_3_repository <username>@jumphost.rcp.epfl.ch:/home/<username>/
-
-# Copy dataset folder
-scp -r fruit_dataset <username>@jumphost.rcp.epfl.ch:/home/<username>/
-
-# Optional: Copy to shared group directory
-scp -r fruit_dataset <username>@jumphost.rcp.epfl.ch:/mnt/course-ee-559/collaborative/group-<group-number>/
+📁finetune_1st
+ ╰─ 📁{checkpoint name}
+     ╰─ checkpoint
 ```
+'finetune_2nd' includes the checkpoints of the final models finetuned on hate speech detection. The upper folders indicate which pre-finetuned parameter was used for intialization among the checkpoints in the 'finetune_1st' folder. Each of pre-finetuned checkpoints was finetuned on both two and three-class classification for hate speech detection according to HateXplain benchmark. The two classes are 'non-toxic' and 'toxic', and the three classes are 'normal', 'offensive', and 'hate speech'.
 
-### 3. 🧪 Test Your Script on an Interactive Node
-
-Before running the full training, test the script interactively with reduced epochs to avoid long GPU usage:
-
-```bash
-runai submit \
---image registry.rcp.epfl.ch/ee-559-<username>/my-toolbox:v0.1 \
---pvc home:/pvc/home \
--e HOME=/home/<username> \
---interactive \
--g 1 \
---attach
 ```
-
-Then, inside the interactive node, run:
-
-```bash
-python3 ~/practice_3_repository/practice_3_simplified.py \
-  --dataset_path ~/ \
-  --results_path ~/practice_3_repository/results/
+📁finetune_2nd
+ ╰─ 📁{the pre-finetuned checkpoint name}
+     ╰─ 📁{the checkpoint name}
+         ╰─ checkpoint 
 ```
+RAYAN: LINK NOT WORKING NEEDS TO TRAIN FROM SCRATCH
 
----
-
-### 4. 🚀 Submit the Full Training Job
-
-Once the script works correctly:
-
-```bash
-runai submit \
-  --image registry.rcp.epfl.ch/ee-559-<username>/my-toolbox:v0.1 \
-  --gpu 1 \
-  --pvc home:/pvc/home -e HOME=/home/<username> \
-  --command -- python3 ~/practice_3_repository/practice_3_simplified.py \
-  --dataset_path ~/ \
-  --results_path ~/practice_3_repository/results/
+## Test
+For testing a model, run second_test.py like below:
+```python
+python second_test.py -m {the model path to test}
 ```
+RAYAN: TYPICALLY: -m /home/mrp/finetune_2nd/0510-1828_bert-base_ncls3_2e-05_16_745/BEST_0510-1828_bert-base_ncls3_2e-05_16_745.ckpt
 
----
-
-## 5. 🪵 Check Job Logs & Monitor
-
-If the job fails or you want to monitor it:
-
-```bash
-runai logs <job-name>
+If you run a model which trained on two-class detection, it would be tested for Bias-based metrics of hateXplain benchmark. And a model which trained on three-class detection, you could get the results for Performance-based metrics and Explainability-based metrics. 
+## Train
+To train a hate speech detection model, you need a pre-finetuned model. If you enter the 'bert-based-uncased' instead of the model path as the ```-pf_m``` argument, you can finetune the pre-trained BERT base model on hate speech detection. And you need to set the ```--num_labels``` argument which means the number of the detection class as 2 or 3. 
+```python
+python second_train.py -pf_m {the pre-finetuned model path to train on hate speech detection} --num_labels {the number of classes: 2 or 3}
 ```
+RAYAN: TYPICALLY -pf_m /home/mrp/finetune_1st/0510-1759_bert-base_mrp_5e-05_16_945/BEST_0510-1759-mrp-05_16_945.ckpt
 
-Track job status here:  
-🔗 [https://rcpepfl.run.ai/](https://rcpepfl.run.ai/)
-
----
-## 6. 🔗 Connect to Server with VS Code Remote SSH
-
-To easily edit files and work directly on the server using VS Code:
-
-### Set up VS Code Remote SSH
-* **Install the Remote SSH extension**:
-   * Open VS Code
-   * Go to Extensions (Ctrl+Shift+X or Cmd+Shift+X on Mac)
-   * Search for "Remote - SSH" and install it
-* **Connect to your remote host**:
-   * Open the Command Palette (Ctrl+Shift+P or Cmd+Shift+P)
-   * Type "Remote-SSH: Connect to Host..." and select it
-   * Choose "Add New SSH Host..." if jumphost.rcp.epfl.ch isn't already listed
-   * Enter: `ssh <username>@jumphost.rcp.epfl.ch`
-   * Select a config file to update (the default one is fine)
-   * Click "Connect" and enter your password when prompted
----

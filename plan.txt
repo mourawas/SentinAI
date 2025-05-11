@@ -1,4 +1,0 @@
-dataset:HateXPlain
-Approach:
-- implement a baseline model. Directly use bert model to see how it performs.
-- write a part in the report about why we choose this dataset
