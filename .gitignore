@@ -67,3 +67,6 @@ trained_models/
 **/model/
 **/outputs/
 **/src/__pycache__/
+**/finetune_1st/
+**/finetune_2nd/
+**/__pycache__/
