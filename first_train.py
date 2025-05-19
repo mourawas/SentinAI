@@ -44,6 +44,7 @@ def get_args_1():
     parser.add_argument('--intermediate', choices=['mrp', 'rp'], required=True, help='choice of an intermediate task')
 
     ## Masked Ratioale Prediction 
+    parser.add_argument('--strategic_masking', action='store_true', help='if True, use strategic masking')
     parser.add_argument('--mask_ratio', type=float, default=0.5)
     parser.add_argument('--n_tk_label', type=int, default=2)
 
@@ -92,7 +93,7 @@ def get_prob_acc(args, gts_tensor, ori_gts, out_logits):
     return batch_pred_probs, batch_gt_probs, batch_prob_acc, batch_bn_gts, batch_bn_preds
         
 
-def evaluate(args, model, dataloader, tokenizer, emb_layer, mlb):
+def evaluate(args, model, dataloader, tokenizer, emb_layer, mlb, token_ambiguity=None):
     all_pred_clses, all_pred_clses_masked, all_gts, all_gts_masked_only = [], [], [], []
     losses = []
     consumed_time = 0
@@ -116,7 +117,18 @@ def evaluate(args, model, dataloader, tokenizer, emb_layer, mlb):
 
             elif args.intermediate == 'mrp':
                 gts = prepare_gts(args, max_len, batch[2])
-                masked_idxs, label_reps, masked_gts = make_masked_rationale_label(args, gts, emb_layer)
+                
+                ##### ADDED PARTS ####
+                
+                # Get tokenized input for strategic masking
+                tokens = None
+                if args.strategic_masking:
+                    tokens = [tokenizer.tokenize(text) for text in batch[0]]
+                
+                masked_idxs, label_reps, masked_gts = make_masked_rationale_label(args, gts, emb_layer, input_tokens=tokens, token_ambiguity=token_ambiguity)
+                    
+                ##### ADDED PARTS ####
+                
                 gts_pad, masked_gts_pad, label_reps = add_pads(args, max_len, gts, masked_gts, label_reps)
 
                 label_reps = torch.stack(label_reps).to(args.device)
@@ -199,6 +211,22 @@ def train(args):
     val_dataset = HateXplainDataset(args, 'val')
     val_dataloader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
     
+    ################### ADDED PARTS ###################
+    
+    token_ambiguity = None
+    if args.intermediate == 'mrp' and args.strategic_masking:
+        token_ambiguity_path = os.path.join(args.dir_hatexplain, 'token_statistics.json')
+        if os.path.exists(token_ambiguity_path):
+            import json
+            with open(token_ambiguity_path, 'r') as f:
+                token_ambiguity = json.load(f)
+        else:
+            from utils import calculate_token_statistics
+            print("Calculating token statistics for strategic masking...")
+            token_ambiguity = calculate_token_statistics(train_dataset, tokenizer, save_path=args.dir_hatexplain)
+            
+    #################### ADDED PARTS ###################
+    
     get_tr_loss = GetLossAverage()
     mlb = MultiLabelBinarizer()
 
@@ -234,7 +262,18 @@ def train(args):
             elif args.intermediate == 'mrp':
                 in_tensor = in_tensor.to(args.device)
                 gts = prepare_gts(args, max_len, batch[2])
-                masked_idxs, label_reps, masked_gts = make_masked_rationale_label(args, gts, emb_layer)
+                
+                ###### ADDED PARTS ####
+                
+                # Get tokenized input for strategic masking
+                tokens = None
+                if args.strategic_masking:
+                    tokens = [tokenizer.tokenize(text) for text in batch[0]]
+                    
+                masked_idxs, label_reps, masked_gts = make_masked_rationale_label(args, gts, emb_layer, input_tokens=tokens, token_ambiguity=token_ambiguity)
+                
+                ###### ADDED PARTS ####
+                
                 gts_pad, masked_gts_pad, label_reps = add_pads(args, max_len, gts, masked_gts, label_reps)
 
                 label_reps = torch.stack(label_reps).to(args.device)
@@ -249,7 +288,7 @@ def train(args):
 
             # validation
             if i == 0 or (i+1) % args.val_int == 0:
-                _, val_loss, val_time, acc, f1 = evaluate(args, model, val_dataloader, tokenizer, emb_layer, mlb)
+                _, val_loss, val_time, acc, f1 = evaluate(args, model, val_dataloader, tokenizer, emb_layer, mlb, token_ambiguity=token_ambiguity)
                 
                 args.n_eval += 1
                 model.train()
@@ -295,7 +334,11 @@ if __name__ == '__main__':
 
     now = datetime.now()
     args.exp_date = now.strftime('%m%d-%H%M')
-    args.exp_name = args.exp_date + '_'+ lm + '_' + args.intermediate +  "_"  + str(args.lr) + "_" + str(args.batch_size) + "_" + str(args.val_int)
+    
+    if args.strategic_masking:
+        args.exp_name = args.exp_date + '_'+ lm + '_' + args.intermediate +  "_"  + str(args.lr) + "_" + str(args.batch_size) + "_" + str(args.val_int) + "_strategic"
+    else:
+        args.exp_name = args.exp_date + '_'+ lm + '_' + args.intermediate +  "_"  + str(args.lr) + "_" + str(args.batch_size) + "_" + str(args.val_int)
     
     dir_result = os.path.join("finetune_1st", args.exp_name)
     if not os.path.exists(dir_result):

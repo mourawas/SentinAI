@@ -21,18 +21,50 @@ def prepare_gts(args, max_len, bi_rats_str):
 
 
 ###### MRP ######
-def make_masked_rationale_label(args, labels, emb_layer):
+def make_masked_rationale_label(args, labels, emb_layer, input_tokens=None, token_ambiguity=None):
     label_reps_list = []
     masked_idxs_list = []
     masked_labels_list = []
-    for label in labels:
+    
+    ##### ADDED PARTS #####
+    
+    # Default to random masking if token ambiguity is not provided
+    use_strategic = token_ambiguity is not None and input_tokens is not None
+    
+    ##### ADDED PARTS #####
+    
+    for idx, label in enumerate(labels):
         idxs = list(range(len(label)))
         if args.test:
             masked_idxs = idxs[1:-1]
             masked_label = [-100]+label[1:-1]+[-100]
             label_rep = torch.zeros(len(label), emb_layer.embedding_dim)
         else:  # Validation and Training
-            masked_idxs = random.sample(idxs[1:-1], int(len(idxs[1:-1])*args.mask_ratio))
+            
+            #### ADDED PARTS #####
+            
+            if use_strategic:
+                # Strategic masking based on token ambiguity
+                tokens = input_tokens[idx]
+                masked_idxs = []
+                
+                # For each token position, decide whether to mask based on token ambiguity
+                for i in range(1, len(label)-1):  # Skip CLS and SEP
+                    if i < len(tokens):
+                        token = tokens[i]
+                        # Get mask probability - default to 0.5 if token not in ambiguity dict
+                        mask_prob = token_ambiguity.get(token, {}).get('mask_probability', 0.5)
+                        if random.random() < mask_prob:
+                            masked_idxs.append(i)
+                    else:
+                        # Use default masking for positions without tokens (e.g., padding)
+                        if random.random() < args.mask_ratio:
+                            masked_idxs.append(i)
+            else:
+                masked_idxs = random.sample(idxs[1:-1], int(len(idxs[1:-1])*args.mask_ratio))
+                
+            #### ADDED PARTS #####
+            
             masked_idxs.sort()
             label_tensor = torch.tensor(label).to(args.device)
             label_rep = emb_layer(label_tensor)
