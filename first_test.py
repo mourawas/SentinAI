@@ -64,6 +64,14 @@ if __name__ == '__main__':
     args.dir_result = '/'.join(args.model_path.split('/')[:-1])
     print("Checkpoint path: ", args.model_path)
     print("Result path: ", args.dir_result)
+    
+    ##### ADDED PARTS ####
+    
+    # Set random seed for reproducibility
+    from utils import set_seed
+    set_seed(42)
+    
+    ##### ADDED PARTS ####
 
     test(args)
 

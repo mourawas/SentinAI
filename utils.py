@@ -2,6 +2,7 @@ import torch
 from torch.utils.data import WeightedRandomSampler
 import os
 import numpy as np
+import random
 import json
 
 
@@ -294,5 +295,18 @@ def calculate_token_statistics(dataset, tokenizer, save_path=None):
     
     print(f"\nToken statistics saved to {output_file}")
     return token_metrics
+
+def set_seed(seed=42):
+    """ Set random seed for reproducibility """
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    
+    
+
 
 

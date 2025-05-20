@@ -351,5 +351,13 @@ if __name__ == '__main__':
 
     gc.collect()
     torch.cuda.empty_cache()
+    
+    ##### ADDED PARTS ####
+    
+    # Set random seed for reproducibility
+    from utils import set_seed
+    set_seed(42)
+    
+    ##### ADDED PARTS ####
 
     train(args)

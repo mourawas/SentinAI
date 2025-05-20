@@ -117,5 +117,13 @@ if __name__ == '__main__':
     print("Checkpoint: ", args.model_path)
     print("Result path: ", args.dir_result)
     
+    ##### ADDED PARTS ####
+    
+    # Set random seed for reproducibility
+    from utils import set_seed
+    set_seed(42)
+    
+    ##### ADDED PARTS ####
+    
 
     test(args)
