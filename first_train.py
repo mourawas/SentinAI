@@ -52,6 +52,9 @@ def get_args_1():
     # Strategic Masking
     parser.add_argument('--strategic_masking', action='store_true', help='if True, use strategic masking')
     
+    # Contrastive Loss
+    parser.add_argument('--contrastive_loss', action='store_true', help='if True, use contrastive loss')
+    
     #### END OF ADDED PARTS ####
 
     args = parser.parse_args()
@@ -227,7 +230,7 @@ def train(args):
             with open(token_ambiguity_path, 'r') as f:
                 token_ambiguity = json.load(f)
         else:
-            from utils import calculate_token_statistics
+            from prefinetune_utils import calculate_token_statistics
             print("Calculating token statistics for strategic masking...")
             token_ambiguity = calculate_token_statistics(train_dataset, tokenizer, save_path=args.dir_hatexplain)
             
@@ -273,8 +276,13 @@ def train(args):
                 
                 # Get tokenized input for strategic masking
                 tokens = None
-                if args.strategic_masking:
+                if args.strategic_masking or args.contrastive_loss:
                     tokens = [tokenizer.tokenize(text) for text in batch[0]]
+                    
+                    if args.contrastive_loss:
+                        from prefinetune_utils import generate_contrastive_pairs
+                        positive_pairs, negative_pairs = generate_contrastive_pairs(tokens, gts)
+                    
                 masked_idxs, label_reps, masked_gts = make_masked_rationale_label(args, gts, emb_layer, input_tokens=tokens, token_ambiguity=token_ambiguity)
                 
                 #### END OF ADDED PARTS ####
@@ -342,6 +350,7 @@ if __name__ == '__main__':
     
     #### ADDED PARTS ####
     
+    args.multitask = False
     if args.strategic_masking:
         args.exp_name = args.exp_date + '_'+ lm + '_' + args.intermediate +  "_"  + str(args.lr) + "_" + str(args.batch_size) + "_" + str(args.val_int) + "_strategic"
     else:
