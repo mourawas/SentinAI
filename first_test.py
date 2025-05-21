@@ -56,6 +56,7 @@ if __name__ == '__main__':
 
     args.test = True
     args.intermediate = 'rp'
+    args.multitask = False
     args.device = get_device()
     #args.device = 'cpu'
     args.batch_size = 1

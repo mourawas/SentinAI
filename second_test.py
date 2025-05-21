@@ -99,6 +99,7 @@ if __name__ == '__main__':
 
     args.test = True
     args.intermediate = False
+    args.multitask = False
     args.batch_size = 1
     args.n_eval = 0
     args.device = get_device()

@@ -176,6 +176,110 @@ class BertModelForMRP(BertModel):
             cross_attentions=encoder_outputs.cross_attentions,
         )
 
+#### ADDED PARTS ####
+
+import torch.nn as nn
+from transformers import BertPreTrainedModel, BertModel
+
+class BertForMultiTaskHSD(BertPreTrainedModel):
+    """ BERT model for multi-task learning """
+    
+    def __init__(self, config, num_labels=3, num_target_groups=17):
+        super().__init__(config)
+
+        # Store task dimensions
+        assert num_labels == 3 or num_labels == 2, "num_labels must be 2 or 3"
+        self.num_labels = num_labels
+        self.num_target_groups = num_target_groups
         
+        # BERT encoder (shared between tasks)
+        self.bert = BertModel(config)
+        
+        # Dropout for regularization
+        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        
+        # Primary classification head for hate speech detection
+        self.classifier = nn.Linear(config.hidden_size, num_labels)
+        
+        # Secondary classification head for target group identification
+        self.target_classifier = nn.Linear(config.hidden_size, num_target_groups)
+        
+        # Initialize weights
+        self.init_weights()
+        
+    def forward(self, input_ids=None, attention_mask=None, token_type_ids=None,
+                position_ids=None, head_mask=None, inputs_embeds=None, 
+                labels=None, target_labels=None, output_attentions=None, 
+                output_hidden_states=None, return_dict=None):
+        """ Forward pass of the model."""
+        
+        # Default return_dict if not specified
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+        
+        # Pass through BERT encoder
+        outputs = self.bert(
+            input_ids,
+            attention_mask=attention_mask,
+            token_type_ids=token_type_ids,
+            position_ids=position_ids,
+            head_mask=head_mask,
+            inputs_embeds=inputs_embeds,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict
+        )
+        
+        # Get [CLS] token representation
+        pooled_output = outputs[1]  # [batch_size, hidden_size]
+        pooled_output = self.dropout(pooled_output)
+        
+        # Generate predictions for both tasks
+        logits = self.classifier(pooled_output)  # [batch_size, num_labels]
+        target_logits = self.target_classifier(pooled_output)  # [batch_size, num_target_groups]
+        
+        # Initialize loss to None
+        total_loss = None
+        
+        # Calculate loss if labels are provided
+        if labels is not None:
 
+            # Calculate loss for hate speech detection
+            loss_fct = nn.CrossEntropyLoss()
+            classification_loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
 
+            # Calculate target loss if target_labels are provided
+            if target_labels is not None:
+                # Binary cross-entropy loss for target group identification
+                target_loss_fct = nn.BCEWithLogitsLoss(reduction='none')
+                target_loss = target_loss_fct(target_logits, target_labels.float())
+                
+                # Apply masking - only calculate target loss for hate/offensive samples
+                if self.num_labels == 3:
+                    is_hateful = (labels != 1).float().unsqueeze(1)  # [batch_size, 1]
+                else:
+                    is_hateful = labels.float().unsqueeze(1)  # [batch_size, 1]
+                
+                # Apply mask to loss
+                masked_target_loss = (target_loss * is_hateful).mean()
+                
+                # Combine losses
+                alpha = getattr(self.config, "alpha", 0.7)
+                total_loss = alpha * classification_loss + (1 - alpha) * masked_target_loss
+            else:
+                total_loss = classification_loss
+                
+        # Prepare output
+        if not return_dict:
+            output = (logits, target_logits) + outputs[2:]
+            return ((total_loss,) + output) if total_loss is not None else output
+        
+        # Return dictionary with all outputs
+        return {
+            'loss': total_loss,
+            'logits': logits,
+            'target_logits': target_logits,
+            'hidden_states': outputs.hidden_states if hasattr(outputs, 'hidden_states') else None,
+            'attentions': outputs.attentions if hasattr(outputs, 'attentions') else None
+        }
+            
+#### END OF ADDED PARTS ####

@@ -129,7 +129,7 @@ class NumpyEncoder(json.JSONEncoder):
         return json.JSONEncoder.default(self, obj)
     
     
-################## ADDED PARTS ##################
+#### ADDED PARTS ####
     
 def calculate_token_statistics(dataset, tokenizer, save_path=None):
     """ Calculate token statistics for strategic masking """
@@ -306,7 +306,4 @@ def set_seed(seed=42):
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
     
-    
-
-
-
+#### END OF ADDED PARTS ####

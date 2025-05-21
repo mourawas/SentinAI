@@ -44,9 +44,15 @@ def get_args_1():
     parser.add_argument('--intermediate', choices=['mrp', 'rp'], required=True, help='choice of an intermediate task')
 
     ## Masked Ratioale Prediction 
-    parser.add_argument('--strategic_masking', action='store_true', help='if True, use strategic masking')
     parser.add_argument('--mask_ratio', type=float, default=0.5)
     parser.add_argument('--n_tk_label', type=int, default=2)
+    
+    ##### ADDED PARTS #####
+    
+    # Strategic Masking
+    parser.add_argument('--strategic_masking', action='store_true', help='if True, use strategic masking')
+    
+    #### END OF ADDED PARTS ####
 
     args = parser.parse_args()
     return args   
@@ -118,7 +124,7 @@ def evaluate(args, model, dataloader, tokenizer, emb_layer, mlb, token_ambiguity
             elif args.intermediate == 'mrp':
                 gts = prepare_gts(args, max_len, batch[2])
                 
-                ##### ADDED PARTS ####
+                #### ADDED PARTS ####
                 
                 # Get tokenized input for strategic masking
                 tokens = None
@@ -127,7 +133,7 @@ def evaluate(args, model, dataloader, tokenizer, emb_layer, mlb, token_ambiguity
                 
                 masked_idxs, label_reps, masked_gts = make_masked_rationale_label(args, gts, emb_layer, input_tokens=tokens, token_ambiguity=token_ambiguity)
                     
-                ##### ADDED PARTS ####
+                #### END OF ADDED PARTS ####
                 
                 gts_pad, masked_gts_pad, label_reps = add_pads(args, max_len, gts, masked_gts, label_reps)
 
@@ -211,7 +217,7 @@ def train(args):
     val_dataset = HateXplainDataset(args, 'val')
     val_dataloader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
     
-    ################### ADDED PARTS ###################
+    #### ADDED PARTS ####
     
     token_ambiguity = None
     if args.intermediate == 'mrp' and args.strategic_masking:
@@ -225,7 +231,7 @@ def train(args):
             print("Calculating token statistics for strategic masking...")
             token_ambiguity = calculate_token_statistics(train_dataset, tokenizer, save_path=args.dir_hatexplain)
             
-    #################### ADDED PARTS ###################
+    #### END OF ADDED PARTS ####
     
     get_tr_loss = GetLossAverage()
     mlb = MultiLabelBinarizer()
@@ -263,16 +269,15 @@ def train(args):
                 in_tensor = in_tensor.to(args.device)
                 gts = prepare_gts(args, max_len, batch[2])
                 
-                ###### ADDED PARTS ####
+                ##### ADDED PARTS ####
                 
                 # Get tokenized input for strategic masking
                 tokens = None
                 if args.strategic_masking:
                     tokens = [tokenizer.tokenize(text) for text in batch[0]]
-                    
                 masked_idxs, label_reps, masked_gts = make_masked_rationale_label(args, gts, emb_layer, input_tokens=tokens, token_ambiguity=token_ambiguity)
                 
-                ###### ADDED PARTS ####
+                #### END OF ADDED PARTS ####
                 
                 gts_pad, masked_gts_pad, label_reps = add_pads(args, max_len, gts, masked_gts, label_reps)
 
@@ -335,10 +340,14 @@ if __name__ == '__main__':
     now = datetime.now()
     args.exp_date = now.strftime('%m%d-%H%M')
     
+    #### ADDED PARTS ####
+    
     if args.strategic_masking:
         args.exp_name = args.exp_date + '_'+ lm + '_' + args.intermediate +  "_"  + str(args.lr) + "_" + str(args.batch_size) + "_" + str(args.val_int) + "_strategic"
     else:
         args.exp_name = args.exp_date + '_'+ lm + '_' + args.intermediate +  "_"  + str(args.lr) + "_" + str(args.batch_size) + "_" + str(args.val_int)
+    
+    #### END OF ADDED PARTS ####
     
     dir_result = os.path.join("finetune_1st", args.exp_name)
     if not os.path.exists(dir_result):
@@ -352,12 +361,12 @@ if __name__ == '__main__':
     gc.collect()
     torch.cuda.empty_cache()
     
-    ##### ADDED PARTS ####
+    #### ADDED PARTS ####
     
     # Set random seed for reproducibility
     from utils import set_seed
     set_seed(42)
     
-    ##### ADDED PARTS ####
+    ##### END OF ADDED PARTS ####
 
     train(args)

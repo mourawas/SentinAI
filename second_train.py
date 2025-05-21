@@ -48,15 +48,37 @@ def get_args_2():
     ## Explainability based metrics
     parser.add_argument('--top_k', default=5, help='the top num of attention values to evaluate on explainable metrics')
     parser.add_argument('--lime_n_sample', default=100, help='the num of samples for lime explainer')
+    
+    ##### ADDED PARTS #####
+        
+    ## Multi-Task Learning 
+    parser.add_argument('--multitask', action='store_true', help='Enable multi-task learning for target group identification')
+    parser.add_argument('--alpha', type=float, default=0.7, help='Weight for hate speech detection loss in multi-task learning (0-1)')  
+    
+    ##### END OF ADDED PARTS #####
 
     args = parser.parse_args()  
     return args 
 
-
 def load_model_train(args):
     tokenizer = BertTokenizer.from_pretrained(args.pretrained_model)
     tokenizer = add_tokens_to_tokenizer(args, tokenizer)
-    model = BertForSequenceClassification.from_pretrained(args.pretrained_model, num_labels=args.num_labels)
+    
+    #### ADDED PARTS ####
+    
+    # Load appropriate model
+    if args.multitask:
+        
+        # Import the multi-task model
+        from module import BertForMultiTaskHSD
+        temp_dataset = HateXplainDataset(args, 'train')
+        num_target_groups = len(temp_dataset.target_groups)
+        
+        model = BertForMultiTaskHSD.from_pretrained(args.pretrained_model, num_labels=args.num_labels, num_target_groups=num_target_groups)
+    else:
+        model = BertForSequenceClassification.from_pretrained(args.pretrained_model, num_labels=args.num_labels)
+        
+    #### END OF ADDED PARTS ####
 
     if 'mlm' in args.pre_finetuned_model:
         pre_finetuned_model = BertForMaskedLM.from_pretrained(args.pre_finetuned_model)
@@ -66,19 +88,34 @@ def load_model_train(args):
     model_state = model.state_dict()
     finetuned_state = pre_finetuned_model.state_dict()
     
+    #### ADDED PARTS ####
+    
     # Initialize condition layer randomly 
     filtered_pretrained_state = {}
     for (k1, v1), (k2, v2) in zip(model_state.items(), finetuned_state.items()):
-        if v1.size() == v2.size():
-            filtered_pretrained_state[k1] = v2
+        if k1.startswith('bert.') and k2.startswith('bert.'):
+            if v1.size() == v2.size():
+                filtered_pretrained_state[k1] = v2
         else:
             filtered_pretrained_state[k1] = v1
 
     model_state.update(filtered_pretrained_state)
-    model.load_state_dict(model_state, strict=True)
+    model.load_state_dict(model_state, strict=False)
+    
+    #### END OF ADDED PARTS ####
+    
+    # # Initialize condition layer randomly 
+    # filtered_pretrained_state = {}
+    # for (k1, v1), (k2, v2) in zip(model_state.items(), finetuned_state.items()):
+    #     if v1.size() == v2.size():
+    #         filtered_pretrained_state[k1] = v2
+    #     else:
+    #         filtered_pretrained_state[k1] = v1
+
+    # model_state.update(filtered_pretrained_state)
+    # model.load_state_dict(model_state, strict=True)
 
     return model, tokenizer
-
 
 def get_pred_cls(logits):
     probs = F.softmax(logits, dim=1)
@@ -185,6 +222,12 @@ def evaluate(args, model, dataloader, tokenizer):
     losses = []
     consumed_time = 0
     total_pred_clses, total_gt_clses, total_probs = [], [], []
+    
+    #### ADDED PARTS ####
+    # For multi-task evaluation
+    if args.multitask:
+        all_target_preds = []
+        all_target_labels = []
 
     bias_dict_list, explain_dict_list = [], []
     label_dict = {0:'hatespeech', 2:'offensive', 1:'normal'}
@@ -192,19 +235,54 @@ def evaluate(args, model, dataloader, tokenizer):
     model.eval()
     with torch.no_grad():
         for i, batch in enumerate(tqdm(dataloader, desc="EVAL | # {}".format(args.n_eval), mininterval=0.01)):
-            texts, labels, ids = batch[0], batch[1], batch[2]
+            
+            #### ADDED PARTS ####
+            
+            if args.multitask:
+                # Multi-task format: (text, cls_num, id, target_encoding)
+                texts, labels, ids, target_labels = batch
+            else:
+                # Original format: (text, cls_num, id)
+                texts, labels, ids = batch
+                
+            #### END OF ADDED PARTS ####
            
             in_tensor = tokenizer(texts, return_tensors='pt', padding=True)
             in_tensor = in_tensor.to(args.device)
             gts_tensor = labels.to(args.device)
 
             start_time = time.time()
-            out_tensor = model(**in_tensor, labels=gts_tensor)
-            consumed_time += time.time() - start_time 
+            
+            #### ADDED PARTS ####
+            
+            if args.multitask:
+                # Multi-task forward pass
+                target_tensor = torch.stack(target_labels).float().to(args.device)
+                target_tensor = target_tensor.t()
+                out_tensor = model(**in_tensor, labels=gts_tensor, target_labels=target_tensor, return_dict=True, output_attentions=True)
 
-            loss = out_tensor.loss
-            logits = out_tensor.logits
-            attns = out_tensor.attentions[11]
+                # Process target predictions
+                loss = out_tensor['loss']
+                logits = out_tensor['logits']
+                target_logits = out_tensor['target_logits']
+                attns = out_tensor['attentions'][11]
+
+                # Process target predictions
+                target_preds = (torch.sigmoid(target_logits) > 0.5).cpu().numpy()
+                
+                all_target_preds.extend(target_preds)
+                all_target_labels.extend(target_tensor.cpu().numpy())
+                
+            else:
+                # Standard forward pass
+                out_tensor = model(**in_tensor, labels=gts_tensor)
+                loss = out_tensor.loss
+                logits = out_tensor.logits
+                attns = out_tensor.attentions[11]
+                
+            #### END OF ADDED PARTS ####
+    
+            consumed_time += time.time() - start_time 
 
             losses.append(loss.item())
             
@@ -226,7 +304,7 @@ def evaluate(args, model, dataloader, tokenizer):
                 if explain_dict == None:
                     continue
                 explain_dict_list.append(explain_dict)
-                    
+                
     time_avg = consumed_time / len(dataloader)
     loss_avg = [sum(losses) / len(dataloader)]
     acc = [accuracy_score(total_gt_clses, total_pred_clses)]
@@ -237,6 +315,20 @@ def evaluate(args, model, dataloader, tokenizer):
         auroc = roc_auc_score(total_gt_clses, total_probs, multi_class='ovo')  
     per_based_scores = [f1, auroc]
     
+    # Calculate target identification metrics if using multi-task
+    if args.multitask:
+        # Only evaluate on hate/offensive samples
+        is_hateful = np.array(total_gt_clses) != 1 if args.num_labels == 3 else np.array(total_gt_clses) == 1
+        if np.any(is_hateful): 
+            target_labels_filtered = np.array(all_target_labels)[is_hateful]
+            target_preds_filtered = np.array(all_target_preds)[is_hateful]
+            
+            target_acc = accuracy_score(target_labels_filtered.flatten(), target_preds_filtered.flatten())
+            target_f1 = f1_score(target_labels_filtered, target_preds_filtered, average='macro')
+            
+            # Add target metrics to the log
+            print(f"Target Group Identification - Accuracy: {target_acc:.4f}, F1: {target_f1:.4f}")
+        
     return losses, loss_avg, acc, per_based_scores, time_avg, bias_dict_list, explain_dict_list 
 
 
@@ -266,16 +358,43 @@ def train(args):
     tr_losses, val_losses, val_f1s, val_accs = [], [], [], []
     for epoch in range(args.epochs):
         for i, batch in enumerate(tqdm(train_dataloader, desc="TRAIN | Epoch: {}".format(epoch), mininterval=0.01)):  # data: (post_words, target_rat, post_id)
-            texts, labels, ids = batch[0], batch[1], batch[2]
+            
+            #### ADDED PARTS ####
+            
+            if args.multitask:
+                # Multi-task format: (text, cls_num, id, target_encoding)
+                texts, labels, ids, target_labels = batch
+            else:
+                # Original format: (text, cls_num, id)
+                texts, labels, ids = batch
+                
+            #### END OF ADDED PARTS ####
     
             in_tensor = tokenizer(texts, return_tensors='pt', padding=True)
             in_tensor = in_tensor.to(args.device)
             gts_tensor = labels.to(args.device)
 
             optimizer.zero_grad()
-
-            out_tensor = model(**in_tensor, labels=gts_tensor)  
-            loss = out_tensor.loss
+            
+            #### ADDED PARTS ####
+            
+            if args.multitask:
+                
+                # Convert target labels to tensor and move to device
+                target_tensor = torch.stack(target_labels).float().to(args.device)
+                target_tensor = target_tensor.t()
+                
+                # Forward pass with target labels
+                out_tensor = model(**in_tensor, labels=gts_tensor, target_labels=target_tensor, return_dict=True)
+                
+                # Extract loss and logits from dictionary output
+                loss = out_tensor['loss']
+            else:
+                # Standard forward pass
+                out_tensor = model(**in_tensor, labels=gts_tensor)  
+                loss = out_tensor.loss
+                
+            #### END OF ADDED PARTS ####
             
             loss.backward()
             optimizer.step()
@@ -331,7 +450,16 @@ if __name__ == '__main__':
 
     now = datetime.now()
     args.exp_date = now.strftime('%m%d-%H%M')
-    args.exp_name = args.exp_date + "_" + lm + "_" + 'ncls' + str(args.num_labels) +  "_"  + str(args.lr) + "_" + str(args.batch_size) + "_" + str(args.val_int)
+    
+    #### ADDED PARTS ####
+    
+    if args.multitask:
+        args.exp_name = args.exp_date + "_" + lm + "_" + 'ncls' + str(args.num_labels) +  "_"  + str(args.lr) + "_" + str(args.batch_size) + "_" + str(args.val_int) + "_multitask"
+    else:
+        args.exp_name = args.exp_date + "_" + lm + "_" + 'ncls' + str(args.num_labels) +  "_"  + str(args.lr) + "_" + str(args.batch_size) + "_" + str(args.val_int)
+    
+    #### END OF ADDED PARTS ####
+    
     folder_name = '.'.join(args.pre_finetuned_model.split('/')[-1].split('.')[:-1])
     dir_result = os.path.join("finetune_2nd", folder_name, args.exp_name)
 

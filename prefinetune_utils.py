@@ -26,12 +26,12 @@ def make_masked_rationale_label(args, labels, emb_layer, input_tokens=None, toke
     masked_idxs_list = []
     masked_labels_list = []
     
-    ##### ADDED PARTS #####
+    #### ADDED PARTS ####
     
     # Default to random masking if token ambiguity is not provided
     use_strategic = token_ambiguity is not None and input_tokens is not None
     
-    ##### ADDED PARTS #####
+    #### END OF ADDED PARTS ####
     
     for idx, label in enumerate(labels):
         idxs = list(range(len(label)))
@@ -41,7 +41,7 @@ def make_masked_rationale_label(args, labels, emb_layer, input_tokens=None, toke
             label_rep = torch.zeros(len(label), emb_layer.embedding_dim)
         else:  # Validation and Training
             
-            #### ADDED PARTS #####
+            ### END OF ADDED PARTS ###
             
             if use_strategic:
                 # Strategic masking based on token ambiguity
@@ -61,9 +61,10 @@ def make_masked_rationale_label(args, labels, emb_layer, input_tokens=None, toke
                         if random.random() < args.mask_ratio:
                             masked_idxs.append(i)
             else:
+                
                 masked_idxs = random.sample(idxs[1:-1], int(len(idxs[1:-1])*args.mask_ratio))
                 
-            #### ADDED PARTS #####
+            #### END OF ADDED PARTS ####
             
             masked_idxs.sort()
             label_tensor = torch.tensor(label).to(args.device)

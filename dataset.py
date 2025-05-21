@@ -11,12 +11,9 @@ import argparse
 
 from utils import add_tokens_to_tokenizer, get_token_rationale
 
-
-
 class HateXplainDataset(Dataset):
     def __init__(self, args, mode='train'):
         assert mode in ['train', 'val', 'test'], "the mode should be [train/val/test]"
-        
         data_root = args.dir_hatexplain
         data_dir = os.path.join(data_root, 'hatexplain_thr_div.json')
         with open(data_dir, 'r') as f:
@@ -35,7 +32,7 @@ class HateXplainDataset(Dataset):
             self.dataset = dataset['val']
         else:  # 'test'
             self.dataset = dataset['test']
-
+            
         if args.intermediate:  
             rm_idxs = []
             for idx, d in enumerate(self.dataset):
@@ -50,6 +47,89 @@ class HateXplainDataset(Dataset):
 
         tokenizer = BertTokenizer.from_pretrained(args.pretrained_model)
         self.tokenizer = add_tokens_to_tokenizer(args, tokenizer)
+        
+        #### ADDED PARTS ####
+        
+        self.multitask = args.multitask and not args.intermediate
+        
+        if self.multitask:
+            self.target_groups = [
+                # Race
+                'African', 'Arab', 'Asian', 'Caucasian', 'Hispanic', 
+                # Religion
+                'Buddhism', 'Christian', 'Hindu', 'Islam', 'Jewish',
+                # Gender
+                'Men', 'Women',
+                # Sexual Orientation
+                'Heterosexual', 'Homosexual',
+                # Miscellaneous
+                'Indigenous', 'Refugee', 'Other'
+            ]
+            
+            self.num_target_groups = len(self.target_groups)
+            
+            # Print target stats only for training in multi-task mode
+            # if mode == 'train':
+            #     self._print_target_stats()
+                
+        #### END OF ADDED PARTS ####
+        
+    #### ADDED PARTS ####
+        
+    def _print_target_stats(self):
+        """Print statistics about target group distribution"""
+        target_counts = {group: 0 for group in self.target_groups}
+        target_counts['None'] = 0
+        
+        multi_target_count = 0
+        
+        for item in self.dataset:
+            targets = item.get('final_target_category', 'None')
+            
+            if isinstance(targets, list):
+                if len(targets) > 1:
+                    multi_target_count += 1
+                
+                for target in targets:
+                    if target in target_counts:
+                        target_counts[target] += 1
+                    else:
+                        print(f"Warning: Unknown target category '{target}'")
+            else: 
+                target_counts['None'] += 1
+        
+        print("\nTarget group distribution in training data:")
+        for group, count in sorted(target_counts.items(), key=lambda x: x[1], reverse=True):
+            print(f"  {group}: {count} posts")
+        print(f"Posts with multiple targets: {multi_target_count}")
+        print(f"Total posts: {len(self.dataset)}\n")
+        
+    def _encode_target_groups(self, target_category):
+        """Convert target category to multi-hot encoding - only used in multi-task mode"""
+        
+        if not self.multitask:
+            raise ValueError("Multi-task encoding is only available in multi-task mode.")
+        
+        # Initialize with all zeros
+        target_encoding = [0] * self.num_target_groups
+        
+        # Handle None case
+        if target_category == 'None' or target_category is None:
+            return target_encoding
+        
+        # Handle list case
+        if isinstance(target_category, list):
+            for target in target_category:
+                if target != 'None':
+                    try:
+                        idx = self.target_groups.index(target)
+                        target_encoding[idx] = 1
+                    except ValueError:
+                        print(f"Warning: Unknown target category '{target}'")
+                        
+        return target_encoding
+    
+    #### END OF ADDED PARTS ####
 
     def __len__(self):
         return len(self.dataset)
@@ -72,8 +152,19 @@ class HateXplainDataset(Dataset):
             return (text, cls_num, fin_rat_str)
             
         elif self.intermediate == False:  # hate speech detection
-            return (text, cls_num, id)
-
+            
+            #### ADDED PARTS ####
+            
+            # Get target groups only if multi-task is enabled
+            if self.multitask:
+                target_category = self.dataset[idx].get('final_target_category', 'None')
+                target_encoding = self._encode_target_groups(target_category)
+                return (text, cls_num, id, target_encoding)
+            else:
+                return (text, cls_num, id)
+            
+            #### END OF ADDED PARTS ####
+            
         else:  
             return ()
 
@@ -108,6 +199,87 @@ class HateXplainDatasetForBias(Dataset):
         self.intermediate = args.intermediate
         assert self.intermediate == False
         
+        #### ADDED PARTS ####
+        
+        self.multitask = args.multitask and not args.intermediate
+        
+        if self.multitask:
+            self.target_groups = [
+                # Race
+                'African', 'Arab', 'Asian', 'Caucasian', 'Hispanic', 
+                # Religion
+                'Buddhism', 'Christian', 'Hindu', 'Islam', 'Jewish',
+                # Gender
+                'Men', 'Women',
+                # Sexual Orientation
+                'Heterosexual', 'Homosexual',
+                # Miscellaneous
+                'Indigenous', 'Refugee', 'Other'
+            ]
+            
+            self.num_target_groups = len(self.target_groups)
+            
+            # Print target stats only for training in multi-task mode
+            # if mode == 'train':
+            #     self._print_target_stats()
+                
+        #### END OF ADDED PARTS ####
+        
+    #### ADDED PARTS ####
+        
+    def _print_target_stats(self):
+        """Print statistics about target group distribution"""
+        target_counts = {group: 0 for group in self.target_groups}
+        target_counts['None'] = 0
+        
+        multi_target_count = 0
+        
+        for item in self.dataset:
+            targets = item.get('final_target_category', 'None')
+            
+            if isinstance(targets, list):
+                if len(targets) > 1:
+                    multi_target_count += 1
+                
+                for target in targets:
+                    if target in target_counts:
+                        target_counts[target] += 1
+                    else:
+                        print(f"Warning: Unknown target category '{target}'")
+            else: 
+                target_counts['None'] += 1
+        
+        print("\nTarget group distribution in training data:")
+        for group, count in sorted(target_counts.items(), key=lambda x: x[1], reverse=True):
+            print(f"  {group}: {count} posts")
+        print(f"Posts with multiple targets: {multi_target_count}")
+        print(f"Total posts: {len(self.dataset)}\n")
+        
+    def _encode_target_groups(self, target_category):
+        """Convert target category to multi-hot encoding - only used in multi-task mode"""
+        
+        if not self.multitask:
+            raise ValueError("Multi-task encoding is only available in multi-task mode.")
+        
+        # Initialize with all zeros
+        target_encoding = [0] * self.num_target_groups
+        
+        # Handle None case
+        if target_category == 'None' or target_category is None:
+            return target_encoding
+        
+        # Handle list case
+        if isinstance(target_category, list):
+            for target in target_category:
+                if target != 'None':
+                    try:
+                        idx = self.target_groups.index(target)
+                        target_encoding[idx] = 1
+                    except ValueError:
+                        print(f"Warning: Unknown target category '{target}'")
+                        
+        return target_encoding
+        
     def __len__(self):
         return len(self.dataset)
 
@@ -118,8 +290,17 @@ class HateXplainDatasetForBias(Dataset):
         label = self.dataset[idx]['final_label']
         cls_num = self.label_list.index(label)
         
-        return (text, cls_num, post_id)
-
+        #### ADDED PARTS ####
+            
+        # Get target groups only if multi-task is enabled
+        if self.multitask:
+            target_category = self.dataset[idx].get('final_target_category', 'None')
+            target_encoding = self._encode_target_groups(target_category)
+            return (text, cls_num, post_id, target_encoding)
+        else:
+            return (text, cls_num, post_id)
+        
+        #### END OF ADDED PARTS ####
 
 if __name__ == '__main__':
     def get_args_1():
@@ -149,7 +330,7 @@ if __name__ == '__main__':
         ## Masked Ratioale Prediction 
         parser.add_argument('--mask_ratio', type=float, default=0.5)
         parser.add_argument('--n_tk_label', type=int, default=2)
-
+        
         args = parser.parse_args()
         return args   
 
