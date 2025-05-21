@@ -75,7 +75,6 @@ def load_model_train(args):
         # Get number of target groups by creating a temporary dataset
         temp_dataset = HateXplainDataset(args, 'train') 
         num_target_groups = len(temp_dataset.target_groups)
-        
         model = BertForMultiTaskHSD.from_pretrained(args.pretrained_model, num_labels=args.num_labels, num_target_groups=num_target_groups)
     else:
         model = BertForSequenceClassification.from_pretrained(args.pretrained_model, num_labels=args.num_labels)
@@ -205,14 +204,26 @@ def get_dict_for_explain(args, model, tokenizer, in_tensor, gts_tensor, attns, i
                     'token_type_ids': torch.zeros(in_ids_com.shape, dtype=torch.int).to(args.device), 
                     'attention_mask': torch.ones(in_ids_com.shape, dtype=torch.int).to(args.device)}
     
-    out_tensor_suf = model(**in_tensor_suf, labels=gts_tensor)  
-    prob_suf = F.softmax(out_tensor_suf.logits, dim=1).detach().cpu().tolist()[0]
-    try:
-        out_tensor_com = model(**in_tensor_com, labels=gts_tensor) 
-    except:
-        print(id)
-
-    prob_com = F.softmax(out_tensor_com.logits, dim=1).detach().cpu().tolist()[0]
+    #### ADDED PARTS ####
+    
+    if args.multitask: 
+        out_tensor_suf = model(**in_tensor_suf, labels=gts_tensor, return_dict=True)  
+        prob_suf = F.softmax(out_tensor_suf['logits'], dim=1).detach().cpu().tolist()[0]
+        try: 
+            out_tensor_com = model(**in_tensor_com, labels=gts_tensor, return_dict=True)
+        except:
+            print(id)
+        prob_com = F.softmax(out_tensor_com['logits'], dim=1).detach().cpu().tolist()[0]
+    else:
+        out_tensor_suf = model(**in_tensor_suf, labels=gts_tensor)
+        prob_suf = F.softmax(out_tensor_suf.logits, dim=1).detach().cpu().tolist()[0]
+        try:
+            out_tensor_com = model(**in_tensor_com, labels=gts_tensor) 
+        except:
+            print(id)
+        prob_com = F.softmax(out_tensor_com.logits, dim=1).detach().cpu().tolist()[0]
+        
+    #### END OF ADDED PARTS ####
     
     explain_dict['sufficiency_classification_scores'] = {"hatespeech": prob_suf[0], "normal": prob_suf[1], "offensive": prob_suf[2]}
     explain_dict['comprehensiveness_classification_scores'] = {"hatespeech": prob_com[0], "normal": prob_com[1], "offensive": prob_com[2]}

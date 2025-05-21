@@ -30,17 +30,9 @@ def test(args):
         # Get number of target groups by creating a temporary dataset
         temp_dataset = HateXplainDataset(args, 'train')
         num_target_groups = len(temp_dataset.target_groups)
-        
-        model = BertForMultiTaskHSD.from_pretrained(args.pretrained_model, num_labels=args.num_labels, num_target_groups=num_target_groups)
-        # Check that target_classifier exists and has weights
-        if hasattr(model, 'target_classifier'):
-            print("Target classifier found!")
-            print(f"Target classifier shape: {model.target_classifier.weight.shape}")
-            # Should match your num_target_groups
-        else:
-            print("Target classifier missing!")
+        model = BertForMultiTaskHSD.from_pretrained(args.model_path, num_labels=args.num_labels, num_target_groups=num_target_groups)
     else:
-        model = BertForSequenceClassification.from_pretrained(args.pretrained_model, num_labels=args.num_labels, local_files_only=True)
+        model = BertForSequenceClassification.from_pretrained(args.model_path, num_labels=args.num_labels, local_files_only=True)
         
     #### END OF ADDED PARTS ####
     

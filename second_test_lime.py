@@ -29,10 +29,9 @@ class TestLime():
             # Get number of target groups by creating a temporary dataset
             temp_dataset = HateXplainDataset(args, 'train')
             num_target_groups = len(temp_dataset.target_groups)
-            
-            model = BertForMultiTaskHSD.from_pretrained(args.pretrained_model, num_labels=args.num_labels, num_target_groups=num_target_groups)
+            model = BertForMultiTaskHSD.from_pretrained(args.model_path, num_labels=args.num_labels, num_target_groups=num_target_groups)
         else:
-            model = BertForSequenceClassification.from_pretrained(args.pretrained_model, num_labels=args.num_labels)
+            model = BertForSequenceClassification.from_pretrained(args.model_path, num_labels=args.num_labels)
         
     #### END OF ADDED PARTS ####
         model = BertForSequenceClassification.from_pretrained(args.model_path, num_labels=args.num_labels, local_files_only=True)
