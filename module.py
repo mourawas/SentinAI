@@ -179,7 +179,7 @@ class BertModelForMRP(BertModel):
 #### ADDED PARTS ####
 
 import torch.nn as nn
-from transformers import BertPreTrainedModel, BertModel
+from transformers import BertPreTrainedModel
 
 class BertForMultiTaskHSD(BertPreTrainedModel):
     """ BERT model for multi-task learning """

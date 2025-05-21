@@ -65,13 +65,15 @@ def load_model_train(args):
     tokenizer = add_tokens_to_tokenizer(args, tokenizer)
     
     #### ADDED PARTS ####
-    
+        
     # Load appropriate model
     if args.multitask:
         
         # Import the multi-task model
         from module import BertForMultiTaskHSD
-        temp_dataset = HateXplainDataset(args, 'train')
+        
+        # Get number of target groups by creating a temporary dataset
+        temp_dataset = HateXplainDataset(args, 'train') 
         num_target_groups = len(temp_dataset.target_groups)
         
         model = BertForMultiTaskHSD.from_pretrained(args.pretrained_model, num_labels=args.num_labels, num_target_groups=num_target_groups)
@@ -224,10 +226,13 @@ def evaluate(args, model, dataloader, tokenizer):
     total_pred_clses, total_gt_clses, total_probs = [], [], []
     
     #### ADDED PARTS ####
+    
     # For multi-task evaluation
     if args.multitask:
         all_target_preds = []
         all_target_labels = []
+        
+    #### END OF ADDED PARTS ####
 
     bias_dict_list, explain_dict_list = [], []
     label_dict = {0:'hatespeech', 2:'offensive', 1:'normal'}
@@ -315,6 +320,8 @@ def evaluate(args, model, dataloader, tokenizer):
         auroc = roc_auc_score(total_gt_clses, total_probs, multi_class='ovo')  
     per_based_scores = [f1, auroc]
     
+    #### ADDED PARTS ####
+    
     # Calculate target identification metrics if using multi-task
     if args.multitask:
         # Only evaluate on hate/offensive samples
@@ -325,11 +332,12 @@ def evaluate(args, model, dataloader, tokenizer):
             
             target_acc = accuracy_score(target_labels_filtered.flatten(), target_preds_filtered.flatten())
             target_f1 = f1_score(target_labels_filtered, target_preds_filtered, average='macro')
-            
-            # Add target metrics to the log
-            print(f"Target Group Identification - Accuracy: {target_acc:.4f}, F1: {target_f1:.4f}")
         
-    return losses, loss_avg, acc, per_based_scores, time_avg, bias_dict_list, explain_dict_list 
+        return losses, loss_avg, acc, per_based_scores, time_avg, bias_dict_list, explain_dict_list, target_acc, target_f1
+    else:
+        return losses, loss_avg, acc, per_based_scores, time_avg, bias_dict_list, explain_dict_list
+    
+    #### END OF ADDED PARTS ####
 
 
 def train(args):
@@ -402,7 +410,14 @@ def train(args):
 
             # Validation 
             if i==0 or (i+1) % args.val_int == 0:
-                _, loss_avg, acc_avg, per_based_scores, time_avg, _, _ = evaluate(args, model, val_dataloader, tokenizer)
+                
+                #### ADDED PARTS ####
+                if args.multitask:
+                    _, loss_avg, acc_avg, per_based_scores, time_avg, _, _, target_acc, target_f1 = evaluate(args, model, val_dataloader, tokenizer)
+                else:
+                    _, loss_avg, acc_avg, per_based_scores, time_avg, _, _, = evaluate(args, model, val_dataloader, tokenizer)
+                
+                #### END OF ADDED PARTS ####
                 
                 args.n_eval += 1
                 model.train()
@@ -418,12 +433,18 @@ def train(args):
                 print("[Epoch {} | Val #{}]".format(epoch, args.n_eval))
                 print("* tr_loss: {}".format(tr_loss))
                 print("* val_loss: {} | val_consumed_time: {}".format(loss_avg[0], time_avg))
-                print("* acc: {} | f1: {} | AUROC: {}\n".format(acc_avg[0], per_based_scores[0], per_based_scores[1]))
+                print("* acc: {} | f1: {} | AUROC: {}".format(acc_avg[0], per_based_scores[0], per_based_scores[1]))
+                
+                if args.multitask:
+                    print(f"* Target Group Identification - acc: {target_acc}| f1: {target_f1}\n")
                 
                 log.write("[Epoch {} | Val #{}]\n".format(epoch, args.n_eval))
                 log.write("* tr_loss: {}\n".format(tr_loss))
                 log.write("* val_loss: {} | val_consumed_time: {}\n".format(loss_avg[0], time_avg))
-                log.write("* acc: {} | f1: {} | AUROC: {}\n\n".format(acc_avg[0], per_based_scores[0], per_based_scores[1]))
+                log.write("* acc: {} | f1: {} | AUROC: {}\n".format(acc_avg[0], per_based_scores[0], per_based_scores[1]))
+                
+                if args.multitask:
+                    log.write(f"* Target Group Identification - acc: {target_acc}| f1: {target_f1}\n\n")
                 
                 save_checkpoint(args, val_losses, None, model)
         

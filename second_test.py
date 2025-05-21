@@ -18,7 +18,32 @@ from explain_result import get_explain_results
 
 def test(args):
     tokenizer = BertTokenizer.from_pretrained(args.pretrained_model)
-    model = BertForSequenceClassification.from_pretrained(args.model_path, num_labels=args.num_labels, local_files_only=True)
+    
+    #### ADDED PARTS ####
+    
+    # Load appropriate model
+    if args.multitask:
+        
+        # Import the multi-task model
+        from module import BertForMultiTaskHSD
+        
+        # Get number of target groups by creating a temporary dataset
+        temp_dataset = HateXplainDataset(args, 'train')
+        num_target_groups = len(temp_dataset.target_groups)
+        
+        model = BertForMultiTaskHSD.from_pretrained(args.pretrained_model, num_labels=args.num_labels, num_target_groups=num_target_groups)
+        # Check that target_classifier exists and has weights
+        if hasattr(model, 'target_classifier'):
+            print("Target classifier found!")
+            print(f"Target classifier shape: {model.target_classifier.weight.shape}")
+            # Should match your num_target_groups
+        else:
+            print("Target classifier missing!")
+    else:
+        model = BertForSequenceClassification.from_pretrained(args.pretrained_model, num_labels=args.num_labels, local_files_only=True)
+        
+    #### END OF ADDED PARTS ####
+    
     tokenizer = add_tokens_to_tokenizer(args, tokenizer)
     
     if args.num_labels == 3:
@@ -32,17 +57,34 @@ def test(args):
     model.config.output_attentions=True
 
     log = open(os.path.join(args.dir_result, 'test_res_performance.txt'), 'a')
-
-    losses, loss_avg, acc, per_based_scores, time_avg, bias_dict_list, explain_dict_list = evaluate(args, model, test_dataloader, tokenizer)
+    
+    #### ADDED PARTS ####
+    
+    if args.multitask:
+        losses, loss_avg, acc, per_based_scores, time_avg, bias_dict_list, explain_dict_list, target_acc, target_f1 = evaluate(args, model, test_dataloader, tokenizer)
+    else:
+        losses, loss_avg, acc, per_based_scores, time_avg, bias_dict_list, explain_dict_list = evaluate(args, model, test_dataloader, tokenizer)
+        
+    #### END OF ADDED PARTS ####
 
     print("Loss_avg: {} / min: {} / max: {} | Consumed_time: {}\n".format(loss_avg, min(losses), max(losses), time_avg))
     print("** Performance-based Scores **")
     print("Acc: {} | F1: {} | AUROC: {} \n".format(acc[0], per_based_scores[0], per_based_scores[1]))
+    
+    if args.multitask:
+        # Print and log target identification metrics
+        print("** Target Group Identification Metrics **")
+        print(f"Target Accuracy: {target_acc} | Target F1: {target_f1}")
 
     log.write("Checkpoint: {}\n".format(args.model_path))
     log.write("Loss_avg: {} / min: {} / max: {} | Consumed_time: {}\n\n".format(loss_avg, min(losses), max(losses), time_avg))
     log.write("** Performance-based Scores **\n")
     log.write("Acc: {} | F1: {} | AUROC: {} \n".format(acc[0], per_based_scores[0], per_based_scores[1]))
+    
+    if args.multitask:
+        log.write("** Target Group Identification Metrics **\n")
+        log.write(f"Target Accuracy: {target_acc} | Target F1: {target_f1}\n\n")
+        
     log.close()
 
     if args.num_labels == 2:
@@ -99,10 +141,18 @@ if __name__ == '__main__':
 
     args.test = True
     args.intermediate = False
-    args.multitask = False
     args.batch_size = 1
     args.n_eval = 0
     args.device = get_device()
+    
+    #### ADDED PARTS ####
+    
+    if 'multitask' in args.model_path:
+        args.multitask = True
+    else:
+        args.multitask = False
+        
+    #### END OF ADDED PARTS ####
 
     if 'ncls2' in args.model_path:
         args.num_labels = 2
@@ -117,6 +167,7 @@ if __name__ == '__main__':
     
     print("Checkpoint: ", args.model_path)
     print("Result path: ", args.dir_result)
+    print("Multi-task mode: ", "Enabled" if args.multitask else "Disabled")
     
     ##### ADDED PARTS ####
     

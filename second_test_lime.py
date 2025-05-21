@@ -17,6 +17,24 @@ class TestLime():
     def __init__(self, args):
         self.args = args
         tokenizer = BertTokenizer.from_pretrained(args.pretrained_model)
+        
+            #### ADDED PARTS ####
+        
+        # Load appropriate model
+        if args.multitask:
+            
+            # Import the multi-task model
+            from module import BertForMultiTaskHSD
+            
+            # Get number of target groups by creating a temporary dataset
+            temp_dataset = HateXplainDataset(args, 'train')
+            num_target_groups = len(temp_dataset.target_groups)
+            
+            model = BertForMultiTaskHSD.from_pretrained(args.pretrained_model, num_labels=args.num_labels, num_target_groups=num_target_groups)
+        else:
+            model = BertForSequenceClassification.from_pretrained(args.pretrained_model, num_labels=args.num_labels)
+        
+    #### END OF ADDED PARTS ####
         model = BertForSequenceClassification.from_pretrained(args.model_path, num_labels=args.num_labels, local_files_only=True)
         tokenizer = add_tokens_to_tokenizer(args, tokenizer)
         
@@ -53,7 +71,16 @@ class TestLime():
     def test(self, args):
         lime_dict_list = []
         for i, batch in enumerate(tqdm(self.dataloader, desc="EVAL | # {}".format(args.n_eval), mininterval=0.01)):
-            texts, labels, ids = batch[0], batch[1], batch[2]
+            
+            #### ADDED PARTS ####
+            
+            if args.multitask:
+                texts, labels, ids, _ = batch  # Ignore target_labels for LIME
+            else:
+                texts, labels, ids = batch
+            
+            #### END OF ADDED PARTS ####
+            
             label = labels[0]
             if label == 1:
                 continue 
