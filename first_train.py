@@ -275,6 +275,7 @@ def train(args):
             optimizer.zero_grad()
 
             if args.intermediate == 'rp':  
+                args.contrastive_loss = False
                 in_tensor = in_tensor.to(args.device)
                 gts = prepare_gts(args, max_len, batch[2])
                 gts_tensor = torch.tensor(gts).long().to(args.device)
@@ -345,11 +346,11 @@ def train(args):
                     contrastive_loss = 0
                 
             # Combine losses
-            totat_loss = out_tensor.loss
+            total_loss = out_tensor.loss
             if args.contrastive_loss and contrastive_loss != 0:
                 # Add contrastive loss with weighting
                 contrastive_weight = args.contrastive_weight if hasattr(args, 'contrastive_weight') else 0.1
-                total_loss = out_tensor.loss + contrastive_weight * contrastive_loss
+                total_loss += contrastive_weight * contrastive_loss
                 
             #### END OF ADDED PARTS ####
             
@@ -382,7 +383,7 @@ def train(args):
                 print("[Epoch {} | Val #{}]".format(epoch, args.n_eval))
                 print("* tr_loss: {}".format(tr_loss))
                 if args.contrastive_loss:
-                    print("* contrastive_loss: {}".format(contrastive_loss_avg))
+                    print("* tr_contrastive_loss: {}".format(contrastive_loss_avg))
                 print("* val_loss: {} | val_consumed_time: {}".format(val_loss, val_time))
                 print("* acc: {} | f1: {}".format(acc[0], f1[0]))
                 if args.intermediate == 'mrp':
@@ -392,7 +393,7 @@ def train(args):
                 log.write("[Epoch {} | Val #{}]\n".format(epoch, args.n_eval))
                 log.write("* tr_loss: {}\n".format(tr_loss))
                 if args.contrastive_loss:
-                    log.write("* contrastive_loss: {}\n".format(contrastive_loss_avg))
+                    log.write("* tr_contrastive_loss: {}\n".format(contrastive_loss_avg))
                 log.write("* val_loss: {} | val_consumed_time: {}\n".format(val_loss, val_time))
                 log.write("* acc: {} | f1: {}\n".format(acc[0], f1[0]))
                 if args.intermediate == 'mrp':
@@ -419,15 +420,18 @@ if __name__ == '__main__':
 
     now = datetime.now()
     args.exp_date = now.strftime('%m%d-%H%M')
+    args.exp_name = args.exp_date + '_'+ lm + '_' + args.intermediate +  "_"  + str(args.lr) + "_" + str(args.batch_size) + "_" + str(args.val_int)
     
     #### ADDED PARTS ####
     
     args.multitask = False
-    if args.strategic_masking:
-        args.exp_name = args.exp_date + '_'+ lm + '_' + args.intermediate +  "_"  + str(args.lr) + "_" + str(args.batch_size) + "_" + str(args.val_int) + "_strategic"
-    else:
-        args.exp_name = args.exp_date + '_'+ lm + '_' + args.intermediate +  "_"  + str(args.lr) + "_" + str(args.batch_size) + "_" + str(args.val_int)
     
+    if args.strategic_masking:
+        args.exp_name += "_strategic_masking"
+        
+    if args.contrastive_loss:
+        args.exp_name += "_contrastive" + "_" + str(args.contrastive_weight) + "_" + str(args.contrastive_temperature)
+        
     #### END OF ADDED PARTS ####
     
     dir_result = os.path.join("finetune_1st", args.exp_name)

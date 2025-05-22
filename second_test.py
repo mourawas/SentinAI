@@ -139,6 +139,9 @@ if __name__ == '__main__':
     
     #### ADDED PARTS ####
     
+    args.strategic_masking = False
+    args.contrastive_loss = False
+    
     if 'multitask' in args.model_path:
         args.multitask = True
     else:

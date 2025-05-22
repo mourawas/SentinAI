@@ -482,13 +482,16 @@ if __name__ == '__main__':
 
     now = datetime.now()
     args.exp_date = now.strftime('%m%d-%H%M')
+    args.exp_name = args.exp_date + "_" + lm + "_" + 'ncls' + str(args.num_labels) +  "_"  + str(args.lr) + "_" + str(args.batch_size) + "_" + str(args.val_int)
     
     #### ADDED PARTS ####
     
+    args.contrastive_loss = False
+    args.strategic_masking = False
+    
     if args.multitask:
-        args.exp_name = args.exp_date + "_" + lm + "_" + 'ncls' + str(args.num_labels) +  "_"  + str(args.lr) + "_" + str(args.batch_size) + "_" + str(args.val_int) + "_multitask"
-    else:
-        args.exp_name = args.exp_date + "_" + lm + "_" + 'ncls' + str(args.num_labels) +  "_"  + str(args.lr) + "_" + str(args.batch_size) + "_" + str(args.val_int)
+        args.exp_name += "_multitask_" + str(args.alpha)
+        
     
     #### END OF ADDED PARTS ####
     

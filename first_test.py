@@ -56,7 +56,15 @@ if __name__ == '__main__':
 
     args.test = True
     args.intermediate = 'rp'
+    
+    #### ADDED PARTS ####
+    
+    args.contrastive_loss = False
+    args.strategic_masking = False
     args.multitask = False
+    
+    #### END OF ADDED PARTS ####
+    
     args.device = get_device()
     #args.device = 'cpu'
     args.batch_size = 1
