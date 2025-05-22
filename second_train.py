@@ -492,7 +492,6 @@ if __name__ == '__main__':
     if args.multitask:
         args.exp_name += "_multitask_" + str(args.alpha)
         
-    
     #### END OF ADDED PARTS ####
     
     folder_name = '.'.join(args.pre_finetuned_model.split('/')[-1].split('.')[:-1])

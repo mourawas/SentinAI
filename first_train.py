@@ -439,6 +439,7 @@ if __name__ == '__main__':
         os.makedirs(dir_result)
 
     print("Checkpoint path: ", dir_result)
+    
     args.dir_result = dir_result
     args.waiting = 0
     args.n_eval = 0
