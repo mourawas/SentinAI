@@ -119,8 +119,10 @@ def add_pads(args, max_len, labels, masked_labels, label_reps):
 
 import os
 import json
+import random
 import numpy as np
 from utils import NumpyEncoder
+import torch.nn.functional as F
 
 def calculate_token_statistics(dataset, tokenizer, save_path=None):
     """ Calculate token statistics for strategic masking """
@@ -293,7 +295,7 @@ def generate_contrastive_pairs(batch_tokens, batch_rationales, max_pairs=50):
     positive_pairs = []
     negative_pairs = []
     
-    for tokens, rationales in zip(batch_tokens, batch_rationales):
+    for idx, (tokens, rationales) in enumerate(zip(batch_tokens, batch_rationales)):
         # Find indices of rationale and non-rationale tokens
         rationale_indices = [i for i, r in enumerate(rationales) if r == 1]
         non_rationale_indices = [i for i, r in enumerate(rationales) if r == 0]
@@ -304,12 +306,11 @@ def generate_contrastive_pairs(batch_tokens, batch_rationales, max_pairs=50):
         
         # Generate positive pairs (rationale-rationale)
         if len(rationale_indices) > 2:
-            import random
              # Limit the number of positive pairs to prevent explosion
             num_pos_pairs = min(len(rationale_indices) * (len(rationale_indices) - 1) // 2, max_pairs // 2)
             for _ in range(num_pos_pairs):
                 i, j = random.sample(rationale_indices, 2)
-                positive_pairs.append((i, j))
+                positive_pairs.append((idx, i, j))
                 
         # Generate negative pairs (rationale-non_rationale)
         # Balance with positive pairs
@@ -318,8 +319,153 @@ def generate_contrastive_pairs(batch_tokens, batch_rationales, max_pairs=50):
         for _ in range(num_neg_pairs):
             i = random.choice(rationale_indices)
             j = random.choice(non_rationale_indices)
-            negative_pairs.append((i, j))
-        
+            negative_pairs.append((idx, i, j))
+            
     return positive_pairs, negative_pairs
 
+def extract_token_representations(model_outputs, attention_mask, rationale_labels, positive_pairs, negative_pairs):
+    """ Extract token-level representations and separate them into rationale/non-rationale embeddings """
+    
+    # Extract last few final hidden states (contextualized representations)
+    all_hidden_states = torch.stack(model_outputs.hidden_states[-4:], dim=0)  # [4, batch_size, seq_len, hidden_size]
+    combined_hidden_states = torch.mean(all_hidden_states, dim=0)  # [batch_size, seq_len, hidden_size]
+    batch_size, seq_len, hidden_size = combined_hidden_states.shape
+    
+    # Create masks for valid tokens (excluding padding)
+    valid_token_mask = attention_mask.bool()  # [batch_size, seq_len]
+    
+    # Separate rationale and non-rationale representations
+    rationale_representations = []
+    non_rationale_representations = []
+    
+    for batch_idx in range(batch_size):
+        valid_tokens = valid_token_mask[batch_idx] # [seq_len]
+        batch_rationales = rationale_labels[batch_idx] # [seq_len]
+        batch_hidden = combined_hidden_states[batch_idx] # [seq_len, hidden_size]
+        
+        # Get valid token positions (exclude [CLS], [SEP], and padding)
+        valid_positions = torch.where(valid_tokens)[0]
+        
+        for pos in valid_positions:
+            token_embedding = batch_hidden[pos] # [hidden_size]
+            
+            if batch_rationales[pos] == 1: # Rationale token
+                rationale_representations.append({
+                    'embedding': token_embedding,
+                    'batch_idx': batch_idx,
+                    'token_idx': pos.item(),
+                    'type': 'rationale'
+                })
+            else: # Non-rationale token
+                non_rationale_representations.append({
+                    'embedding': token_embedding,
+                    'batch_idx': batch_idx,
+                    'token_idx': pos.item(),
+                    'type': 'non-rationale'
+                })
+                
+    # Extract pair representations for contrastive learning
+    positive_pair_embeddings = extract_pair_embeddings(combined_hidden_states, 
+                                                      positive_pairs, pair_type='positive')
+    
+    negative_pair_embeddings = extract_pair_embeddings(combined_hidden_states,
+                                                      negative_pairs, pair_type='negative')
+
+    return {
+        'combined_hidden_states': combined_hidden_states,
+        'rationale_representations': rationale_representations,
+        'non_rationale_representations': non_rationale_representations,
+        'positive_pair_embeddings': positive_pair_embeddings,
+        'negative_pair_embeddings': negative_pair_embeddings,
+        'valid_token_mask': valid_token_mask
+    }
+def extract_pair_embeddings(hidden_states, pairs, pair_type='positive'):
+    """ Extract embeddings for token pairs for contrastive learning """
+    
+    pair_embeddings = []
+    
+    for idx, token_i, token_j in pairs:
+        # Extract embeddings for both tokens in the pair
+        emb_i = hidden_states[idx, token_i]  # [hidden_size]
+        emb_j = hidden_states[idx, token_j]  # [hidden_size]
+        
+        pair_embeddings.append({
+        'anchor_embedding': emb_i,
+        'pair_embedding': emb_j,
+        'batch_idx': idx,
+        'anchor_token_idx': token_i,
+        'pair_token_idx': token_j,
+        'pair_type': pair_type
+        })
+   
+    return pair_embeddings
+
+def create_contrastive_batch_tensors(positive_pairs_emb, negative_pairs_emb, device):
+    """ Create batched tensors for efficient contrastive loss computation """
+    
+    if not positive_pairs_emb and not negative_pairs_emb:
+        return None
+    
+    # Prepare positive pairs
+    pos_anchors = []
+    pos_pairs = []
+    pos_labels = []
+    
+    for pair in positive_pairs_emb:
+        pos_anchors.append(pair['anchor_embedding'])
+        pos_pairs.append(pair['pair_embedding'])
+        pos_labels.append(1) # Positive label
+        
+    # Prepare negative pairs
+    neg_anchors = []
+    neg_pairs = []
+    neg_labels = []
+    
+    for pair in negative_pairs_emb:
+        neg_anchors.append(pair['anchor_embedding'])
+        neg_pairs.append(pair['pair_embedding'])
+        neg_labels.append(0)
+        
+    # Combine positive and negative pairs
+    all_anchors = pos_anchors + neg_anchors
+    all_pairs = pos_pairs + neg_pairs
+    all_labels = pos_labels + neg_labels
+    
+    if not all_anchors:
+        return None
+    
+    # Convert to tensors
+    anchor_tensor = torch.stack(all_anchors).to(device)  # [num_pairs, hidden_size]
+    pair_tensor = torch.stack(all_pairs).to(device)      # [num_pairs, hidden_size]
+    label_tensor = torch.tensor(all_labels, dtype=torch.float).to(device)  # [num_pairs]
+    
+    return {
+        'anchors': anchor_tensor,
+        'pairs': pair_tensor,
+        'labels': label_tensor,
+        'num_positive': len(pos_anchors),
+        'num_negative': len(neg_anchors)
+    }
+    
+def compute_contrastive_loss(anchors, pairs, labels, temperature=0.1):
+    """ Compute contrastive loss for rationale prediction """
+    
+    if anchors.size(0) == 0:
+        return torch.tensor(0.0, device=anchors.device, requires_grad=True)
+  
+    # Normalize embeddings
+    anchors_norm = F.normalize(anchors, dim=1)
+    pairs_norm = F.normalize(pairs, dim=1)
+    
+    # Compute cosine similarities
+    similarities = torch.cosine_similarity(anchors_norm, pairs_norm, dim=1) / temperature 
+    
+    # Create targets for cross-entropy loss
+    # Positive pairs should have high similarity, negative pairs should have low similarity
+    targets = labels.float()
+    
+    # Use binary cross-entropy with logits
+    loss = F.binary_cross_entropy_with_logits(similarities, targets)
+    
+    return loss
 #### END OF ADDED PARTS ####

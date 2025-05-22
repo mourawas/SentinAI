@@ -54,6 +54,8 @@ def get_args_1():
     
     # Contrastive Loss
     parser.add_argument('--contrastive_loss', action='store_true', help='if True, use contrastive loss')
+    parser.add_argument('--contrastive_weight', type=float, default=0.1, help='weight for contrastive loss')
+    parser.add_argument('--contrastive_temperature', type=float, default=0.1, help='temperature for contrastive loss')
     
     #### END OF ADDED PARTS ####
 
@@ -233,7 +235,17 @@ def train(args):
             from prefinetune_utils import calculate_token_statistics
             print("Calculating token statistics for strategic masking...")
             token_ambiguity = calculate_token_statistics(train_dataset, tokenizer, save_path=args.dir_hatexplain)
-            
+    
+    get_contrastive_loss = None
+    if args.contrastive_loss:
+        from prefinetune_utils import (
+            generate_contrastive_pairs, 
+            extract_token_representations, 
+            create_contrastive_batch_tensors,
+            compute_contrastive_loss
+        )
+        get_contrastive_loss = GetLossAverage()
+        
     #### END OF ADDED PARTS ####
     
     get_tr_loss = GetLossAverage()
@@ -274,14 +286,16 @@ def train(args):
                 
                 ##### ADDED PARTS ####
                 
-                # Get tokenized input for strategic masking
+                # Get tokenized input for strategic masking and contrastive learning
                 tokens = None
+                positive_pairs, negative_pairs = None, None
+                
                 if args.strategic_masking or args.contrastive_loss:
                     tokens = [tokenizer.tokenize(text) for text in batch[0]]
                     
-                    if args.contrastive_loss:
-                        from prefinetune_utils import generate_contrastive_pairs
-                        positive_pairs, negative_pairs = generate_contrastive_pairs(tokens, gts)
+                # Generate contrastive pairs
+                if args.contrastive_loss:
+                    positive_pairs, negative_pairs = generate_contrastive_pairs(tokens, gts)
                     
                 masked_idxs, label_reps, masked_gts = make_masked_rationale_label(args, gts, emb_layer, input_tokens=tokens, token_ambiguity=token_ambiguity)
                 
@@ -292,12 +306,56 @@ def train(args):
                 label_reps = torch.stack(label_reps).to(args.device)
                 gts_tensor = torch.tensor(masked_gts_pad).to(args.device)
                 in_tensor['label_reps'] = label_reps
-                out_tensor = model(**in_tensor, labels=gts_tensor)
+                out_tensor = model(**in_tensor, labels=gts_tensor, output_hidden_states=True)
                 
-            loss = out_tensor.loss
-            loss.backward()
+            #### ADDED PARTS ####
+            
+            # Compute contrastive loss if enabled
+            contrastive_loss = 0
+            if args.contrastive_loss and positive_pairs is not None and negative_pairs is not None:
+                try:
+                    # Extract representation
+                    representations = extract_token_representations(
+                        model_outputs=out_tensor,
+                        attention_mask=in_tensor['attention_mask'],
+                        rationale_labels=torch.tensor(gts_pad).to(args.device),
+                        positive_pairs=positive_pairs,
+                        negative_pairs=negative_pairs
+                        )
+                    
+                    # Create batched tensors for contrastive loss
+                    contrastive_tensors = create_contrastive_batch_tensors(
+                        representations['positive_pair_embeddings'],
+                        representations['negative_pair_embeddings'],
+                        args.device
+                    )
+                    
+                    if contrastive_tensors is not None:
+                        contrastive_loss = compute_contrastive_loss(
+                            contrastive_tensors['anchors'],
+                            contrastive_tensors['pairs'],
+                            contrastive_tensors['labels'],
+                            temperature=args.contrastive_temperature if hasattr(args, 'contrastive_temperature') else 0.1
+                        )
+                        
+                        if get_contrastive_loss:
+                            get_contrastive_loss.add(contrastive_loss)
+                except Exception as e:
+                    print(f"Warning: Contrastive loss computation failed: {e}")
+                    contrastive_loss = 0
+                
+            # Combine losses
+            totat_loss = out_tensor.loss
+            if args.contrastive_loss and contrastive_loss != 0:
+                # Add contrastive loss with weighting
+                contrastive_weight = args.contrastive_weight if hasattr(args, 'contrastive_weight') else 0.1
+                total_loss = out_tensor.loss + contrastive_weight * contrastive_loss
+                
+            #### END OF ADDED PARTS ####
+            
+            total_loss.backward()
             optimizer.step()
-            get_tr_loss.add(loss)
+            get_tr_loss.add(total_loss)
 
             # validation
             if i == 0 or (i+1) % args.val_int == 0:
@@ -311,8 +369,20 @@ def train(args):
                 tr_losses.append(tr_loss) 
                 get_tr_loss.reset()  
                 
+                ### ADDED PARTS ####
+                
+                # Log contrastive loss if enabled
+                contrastive_loss_avg = 0
+                if get_contrastive_loss:
+                    contrastive_loss_avg = get_contrastive_loss.aver()
+                    get_contrastive_loss.reset()
+                    
+                #### END OF ADDED PARTS ####
+                
                 print("[Epoch {} | Val #{}]".format(epoch, args.n_eval))
                 print("* tr_loss: {}".format(tr_loss))
+                if args.contrastive_loss:
+                    print("* contrastive_loss: {}".format(contrastive_loss_avg))
                 print("* val_loss: {} | val_consumed_time: {}".format(val_loss, val_time))
                 print("* acc: {} | f1: {}".format(acc[0], f1[0]))
                 if args.intermediate == 'mrp':
@@ -321,6 +391,8 @@ def train(args):
 
                 log.write("[Epoch {} | Val #{}]\n".format(epoch, args.n_eval))
                 log.write("* tr_loss: {}\n".format(tr_loss))
+                if args.contrastive_loss:
+                    log.write("* contrastive_loss: {}\n".format(contrastive_loss_avg))
                 log.write("* val_loss: {} | val_consumed_time: {}\n".format(val_loss, val_time))
                 log.write("* acc: {} | f1: {}\n".format(acc[0], f1[0]))
                 if args.intermediate == 'mrp':
