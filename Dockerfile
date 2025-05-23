@@ -24,10 +24,9 @@ RUN chsh -s /bin/bash
 SHELL ["/bin/bash", "-c"]
 
 # Activate the conda environment
-# Install Pytorch through the direct torch wheel since CUDA isn't available yet
+# Install latest PyTorch with CUDA 11.8 support
 RUN source activate mrp && \
-    python3 -m pip install --no-cache-dir torch==1.13.0+cu116 --extra-index-url https://download.pytorch.org/whl/cu116
-
+    python3 -m pip install --no-cache-dir torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu118
 # Install other libraries, you can add other libraries here as you want
 #RUN pip install --upgrade pip
 RUN python3 -m pip install --no-cache-dir emoji==1.6.1 transformers numpy scikit-learn tqdm lime seaborn pandas matplotlib torch_optimizer more-itertools
