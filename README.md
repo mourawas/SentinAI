@@ -2,7 +2,7 @@
 
 ## Enhanced Features
 
-This repository includes several enhancements to the original [MRP model](https://arxiv.org/abs/2211.00243):
+This repository includes several enhancements to the original MRP model [1]:
 
 ### 🎯 **Strategic Masking**
 - **Strategic token masking** based on token ambiguity rather than random masking
