@@ -106,7 +106,7 @@ python first_train.py --intermediate mrp --strategic_masking --contrastive_loss 
 When using `--multitask`, models will output:
 - **Hate speech classification** (normal/offensive/hatespeech)
 - **Target group identification** (17 categories including race, religion, gender, etc.)
-- **Combined evaluation metrics** for both tasks
+- Combined evaluation metrics for both tasks
 
 ### Strategic Masking
 - Automatically generates `token_statistics.json` for optimized masking
@@ -115,7 +115,6 @@ When using `--multitask`, models will output:
 ### Contrastive Learning
 - Enhanced token representations through positive/negative pair learning
 - Configurable loss weighting and temperature parameters
-- Integrated seamlessly with existing MRP training pipeline
 
 ## References
 **[1] Masked Rationale Prediction for Explainable Hate Speech Detection:** [COLING](https://aclanthology.org/2022.coling-1.577/)  |  [arXiv](https://arxiv.org/abs/2211.00243) | [GitHub](https://github.com/alatteaday/mrp_hate-speech-detection)   
