@@ -1,4 +1,4 @@
-# MRP++ : Multi-task Hate Speech Detection with Strategic Masking and Contrastive Learning
+# Enhanced-MRP: Strategic Masking with Contrastive Multi-task Learning for Explainable Hate Speech Detection
 
 ## Enhanced Features
 
