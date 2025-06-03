@@ -127,7 +127,10 @@ def get_bias_results(args, bias_score_file_mapping):
 
 def get_plots(bias_dict):
     #tuple_community = []
-    for each_method in ['bnsp', 'subgroup', 'bpsn']:
+    if isinstance(bias_dict, tuple):
+        bias_dict = bias_dict[0]
+        
+    for each_method in ['subgroup', 'bpsn', 'bnsp']:
         tuple_community = []
         for each_model in bias_dict:
             # Select the metric which you want to view. Possible values are subgroup, bpsn, bnsp
@@ -137,27 +140,37 @@ def get_plots(bias_dict):
                 tuple_community.append((each_model, each_community, bias_dict[each_model][each_method][each_community]))
         
         df_community_score = pd.DataFrame(tuple_community, columns=['Model', 'Community', 'AUCROC'])
-
+        legend = False
+        if each_method == 'bnsp':
+            legend = True
         ax = sns.catplot(x="Community", y="AUCROC", hue="Model",
                     data=df_community_score,
-                    legend=False,
+                    legend=legend,
                     kind="bar")
+        
+        #Augment size of legend
+        if legend:
+            handles, labels = ax.ax.get_legend_handles_labels()
+            ax.ax.legend(handles, labels, fontsize=12.5, loc='upper right', ncol=2, bbox_to_anchor=(1.01, 1.1), borderaxespad=0.)
+            
         ax.set(ylim=(0.3, 1.0))
-        ax.set_xticklabels(rotation=45, size=13, horizontalalignment='right')
+        ax.set_xticklabels(rotation=45, size=18, horizontalalignment='right')
+        ax.set_yticklabels(size=16)
 
         # sns.set(font_scale = 0.1)
 
-        handles = ax._legend_data.values()
-        labels = ax._legend_data.keys()
+        # handles = ax._legend_data.values()
+        # labels = ax._legend_data.keys()
 
-        ax.fig.legend(handles=handles, labels=labels, loc='upper right', ncol=3)
-        ax.fig.subplots_adjust(top=0.92)
+        # ax.fig.legend(handles=handles, labels=labels, loc='upper right', ncol=3)
+        # ax.fig.subplots_adjust(top=0.92)
 
+        
         #ax.set(xlabel=each_method.upper(), fontdict={'fontsize': 15, 'fontweight': 'bold'}, pad=15)  
         plt.xlabel(xlabel=each_method.upper(), fontdict={'fontsize': 15, 'fontweight': 'bold'}, labelpad=5)  
         #plt.title(each_method.upper(), loc='left', fontdict={'fontsize': 15}, pad=15)
-        #print(each_method)
-        plt.savefig('/home/jiyun/hatesp_detection/vis/bias_'+each_method+'.png', dpi=300, transparent=True, bbox_inches='tight')
+        os.makedirs('./hatesp_detection/vis/', exist_ok=True)
+        plt.savefig('./hatesp_detection/vis/bias_'+each_method+'.png', dpi=300, transparent=True, bbox_inches='tight')
 
 
 if __name__ == '__main__':
@@ -176,3 +189,16 @@ if __name__ == '__main__':
     get_plots(bias_dict)
 
     """
+    import argparse
+    parser = argparse.ArgumentParser(description='')
+    parser.add_argument('--dir_hatexplain', type=str, default="./dataset", help='the root directiory of the dataset')
+    args = parser.parse_args()  
+    bias_score_file_mapping = {
+        'BERT_MRP': "./finetune_2nd/0519-2201_bert-base_ncls2_2e-05_16_745/for_bias.json",
+        'BERT_SM_MRP': "./finetune_2nd/0521-1728_bert-base_ncls2_2e-05_16_745_multitask_0.7/for_bias.json",
+        'BERT_CM_MRP': "./finetune_2nd/0522-1614_bert-base_ncls2_2e-05_16_745_multitask_0.7/for_bias.json",
+        'BERT_SCM_MRP': "./finetune_2nd/0522-1834_bert-base_ncls2_2e-05_16_745_multitask_0.7/for_bias.json",
+        }
+
+    bias_dict = get_bias_results(args, bias_score_file_mapping)
+    get_plots(bias_dict)

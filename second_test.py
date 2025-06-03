@@ -87,7 +87,7 @@ def test(args):
         print("** Bias-based Scores **")
         log = open(os.path.join(args.dir_result, 'test_res_bias.txt'), 'a')
         bias_score_dict, n_targets = get_bias_results(args, {'MODEL': args.dir_result+'/for_bias.json'})
-
+    
         power_value = -5
         for each_model in bias_score_dict:
             for each_method in bias_score_dict[each_model]:

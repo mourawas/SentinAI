@@ -379,6 +379,7 @@ def extract_token_representations(model_outputs, attention_mask, rationale_label
         'negative_pair_embeddings': negative_pair_embeddings,
         'valid_token_mask': valid_token_mask
     }
+    
 def extract_pair_embeddings(hidden_states, pairs, pair_type='positive'):
     """ Extract embeddings for token pairs for contrastive learning """
     
