@@ -1,4 +1,4 @@
-# Enhanced-MRP: Strategic Masking with Contrastive Multi-task Learning for Explainable Hate Speech Detection
+# Strategic Masking with Contrastive Multi-task Learning for Explainable Hate Speech Detection
 
 ## Enhanced Features
 
