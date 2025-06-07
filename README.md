@@ -23,7 +23,7 @@ This repository includes several enhancements to the original MRP model [1]:
 ## Initial Setting
 First, Clone this git repository
 ```
-git clone https://github.com/rayangdn/SentinAI
+git clone https://github.com/mourawas/SentinAI
 ```
 The docker commands are implemented in GNU Makefile. You can build the linux-anaconda image that the required packages are installed. The details are written in Dockerfile and Makefile. Or you can use the docker commands directly. 
 1. Set the name variables in Makefile, such as IMAGE_NAME, IMAGE_TAG, CONTAINER_NAME, CONTAINER_PORT, NVIDIA_VISIBLE_DEVICES.
